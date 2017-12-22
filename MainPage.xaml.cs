@@ -45,6 +45,7 @@ namespace RandomPicker
 
 
         DispatcherTimer dispatcherTimer1 = new DispatcherTimer();
+        DispatcherTimer dispatcherTimer2 = new DispatcherTimer();
         DateTimeOffset startTime;
         DateTimeOffset lastTime;
         DateTimeOffset stopTime;
@@ -55,15 +56,12 @@ namespace RandomPicker
         bool firstimestart=true;
         bool firstimeadd = true;
         bool looptop = false;
+        bool isdispatcherTimer1=true;
         #endregion
 
         
 
-        void dispatcherTimer_Tick(object sender, object e)
-        {
-            randomlist(memberlist);
-        }
-     
+      
 
         public MainPage()
         {
@@ -77,14 +75,23 @@ namespace RandomPicker
 
         #region Events
 
-        private void start_click(object sender, RoutedEventArgs e)
+        private async void start_click(object sender, RoutedEventArgs e)
         {
-            if(firstimestart)
+            if(NameList.Text==null)
             {
-                log.Text += "Starting......\n";
-                firstimestart = false;
-            }               
-            DispatcherTimerSetup(dispatcherTimer1);
+                MessageDialog dlg = new MessageDialog("先选人");
+                await dlg.ShowAsync();
+                return;
+            }
+            if(isdispatcherTimer1)
+            {
+                DispatcherTimerSetup(dispatcherTimer1);
+            }
+            else
+            {
+                DispatcherTimerSetup(dispatcherTimer2);
+            }
+           
             startbtn.IsEnabled = false;
             
         }
@@ -92,26 +99,72 @@ namespace RandomPicker
         private void pause_click(object sender, RoutedEventArgs e)
         {
             startbtn.IsEnabled = true;
-            DispatcherTimerStop(dispatcherTimer1);
-            log.Text += memberlist[index].Name + "已中奖，来个节目呗！\n";
-            memberlist.RemoveAt(index);  
-            
+            if (isdispatcherTimer1)
+            {
+                DispatcherTimerStop(dispatcherTimer1);
+                memberlist.RemoveAt(index);
+            }
+            else
+            {
+                DispatcherTimerStop(dispatcherTimer2);
+                memberlist.Where(l => l.Name == NameList.Text).ToList().All(i => memberlist.Remove(i));
+                toplist.Where(l => l.Name == NameList.Text).ToList().All(i => toplist.Remove(i));
+            }
+            log.Text += NameList.Text + "已中奖，来个节目呗！\n";
+
         }
 
-        private void remove_click(object sender, RoutedEventArgs e)
+        private async void remove_click(object sender, RoutedEventArgs e)
         {
-            memberlist.RemoveAt(combox.SelectedIndex);
+            try
+            {
+                memberlist.RemoveAt(combox.SelectedIndex);
+            }
+            catch(Exception ex)
+            {
+                MessageDialog dlg = new MessageDialog("出错了:" + ex.Message);
+                await dlg.ShowAsync();
+                return;
+            }
+          
         }
 
         private async void add_click(object sender, RoutedEventArgs e)
         {
-            toplist.Add(memberlist[combox.SelectedIndex]);
+            var selectedname = ((Member)combox.SelectedItem).Name;
+            bool has = toplist.Any(cus => cus.Name == selectedname);
+            if(has)
+            {
+                MessageDialog dlg = new MessageDialog("The name already exist");
+                await dlg.ShowAsync();
+                return;
+            }
+            else
+            {
+                toplist.Add(memberlist[combox.SelectedIndex]);
+            }
+            
         }
 
         private void switch_click(object sender, RoutedEventArgs e)
         {
-            namelist.Visibility = Visibility.Visible;
-            toplistview.Visibility = Visibility.Collapsed;
+            
+            ToggleSwitch toggleSwitch = sender as ToggleSwitch;
+            if (toggleSwitch != null)
+            {
+                if (toggleSwitch.IsOn == true)
+                {
+                    namelist.Visibility = Visibility.Collapsed;
+                    toplistview.Visibility = Visibility.Visible;
+                    isdispatcherTimer1 = false;
+                }
+               else
+                {
+                    namelist.Visibility = Visibility.Visible;
+                    toplistview.Visibility = Visibility.Collapsed;
+                    isdispatcherTimer1 = true;
+                }
+            }
         }
 
         #endregion
@@ -158,9 +211,31 @@ namespace RandomPicker
             toplist = templist;
         }
 
+        #endregion
+
+        #region Timer
+
+        void dispatcherTimer1_Tick(object sender, object e)
+        {
+            randomlist(memberlist);
+        }
+
+        void dispatcherTimer2_Tick(object sender, object e)
+        {
+            randomlist(toplist);
+        }
+
         public void DispatcherTimerSetup(DispatcherTimer dispatcher)
         {
-            dispatcher.Tick += dispatcherTimer_Tick;
+            if (isdispatcherTimer1)
+            {
+                dispatcher.Tick += dispatcherTimer1_Tick;
+            }
+            else
+            {
+                dispatcher.Tick += dispatcherTimer2_Tick;
+            }
+              
             dispatcher.Interval = new TimeSpan(0, 0, 0, 0, 200);
             startTime = DateTimeOffset.Now;
             lastTime = startTime;
@@ -169,8 +244,8 @@ namespace RandomPicker
 
         public void DispatcherTimerStop(DispatcherTimer dispatcher)
         {
-            dispatcher.Stop();
+            dispatcher.Stop();      
         }
-        #endregion
+        #endregion 
     }
 }
